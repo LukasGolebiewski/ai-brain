@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Brain — Baza Wiedzy</title>
+  <style>
+    /* ── Reset & Base ─────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d0f16;
+      --surface:   #13161f;
+      --card:      #1a1e2e;
+      --border:    #252a3d;
+      --accent:    #6366f1;
+      --accent-h:  #818cf8;
+      --accent-bg: rgba(99,102,241,.12);
+      --green:     #10b981;
+      --red:       #ef4444;
+      --text:      #e2e8f0;
+      --muted:     #64748b;
+      --radius:    10px;
+      --sidebar-w: 280px;
+      --font: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Layout ───────────────────────────────────────────── */
+    .app {
+      display: flex;
+      flex: 1;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ──────────────────────────────────────────── */
+    .sidebar {
+      width: var(--sidebar-w);
+      min-width: var(--sidebar-w);
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sidebar-header {
+      padding: 20px 16px 14px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 14px;
+    }
+
+    .logo-icon {
+      width: 32px; height: 32px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      font-size: 17px;
+    }
+
+    .logo-text { font-size: 15px; font-weight: 700; letter-spacing: -.3px; }
+    .logo-sub  { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity .15s, background .15s;
+    }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-primary  { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled)  { background: var(--accent-h); }
+    .btn-ghost    { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn-ghost:hover:not(:disabled) { background: var(--card); }
+    .btn-full     { width: 100%; justify-content: center; }
+    .btn-sm       { padding: 6px 10px; font-size: 12px; }
+
+    .projekt-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+
+    .projekt-list::-webkit-scrollbar { width: 4px; }
+    .projekt-list::-webkit-scrollbar-track { background: transparent; }
+    .projekt-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .projekt-item {
+      padding: 10px 12px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      margin-bottom: 2px;
+      transition: background .12s;
+      border: 1px solid transparent;
+    }
+
+    .projekt-item:hover  { background: var(--card); }
+    .projekt-item.active { background: var(--accent-bg); border-color: var(--accent); }
+
+    .projekt-item-name {
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .projekt-item-date {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 3px;
+    }
+
+    .empty-list {
+      padding: 24px 12px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .sidebar-footer {
+      padding: 12px;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    /* ── Main ─────────────────────────────────────────────── */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Topbar ───────────────────────────────────────────── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+      gap: 12px;
+    }
+
+    .topbar-project {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .topbar-label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .6px;
+    }
+
+    .topbar-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      margin-top: 2px;
+    }
+
+    .topbar-actions { display: flex; gap: 8px; align-items: center; }
+
+    /* Upload area */
+    .upload-wrap { position: relative; }
+
+    .upload-input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    .progress-bar-wrap {
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 6px;
+      display: none;
+    }
+
+    .progress-bar-wrap.visible { display: block; }
+
+    .progress-bar {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      transition: width .3s ease;
+      width: 0%;
+    }
+
+    .upload-status {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+      min-height: 16px;
+      text-align: right;
+    }
+
+    /* ── Chat ─────────────────────────────────────────────── */
+    .chat-wrap {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .chat-messages::-webkit-scrollbar { width: 4px; }
+    .chat-messages::-webkit-scrollbar-track { background: transparent; }
+    .chat-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .chat-empty {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      text-align: center;
+      gap: 12px;
+      padding: 40px;
+    }
+
+    .chat-empty-icon { font-size: 40px; opacity: .4; }
+    .chat-empty-title { font-size: 16px; font-weight: 600; color: var(--text); }
+    .chat-empty-sub   { font-size: 13px; max-width: 300px; line-height: 1.6; }
+
+    /* Messages */
+    .msg { display: flex; flex-direction: column; gap: 6px; max-width: 760px; }
+    .msg.user { align-self: flex-end; align-items: flex-end; }
+    .msg.assistant { align-self: flex-start; align-items: flex-start; }
+
+    .msg-bubble {
+      padding: 12px 16px;
+      border-radius: 14px;
+      font-size: 14px;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .msg.user .msg-bubble {
+      background: var(--accent);
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+
+    .msg.assistant .msg-bubble {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+    }
+
+    .msg-label {
+      font-size: 11px;
+      color: var(--muted);
+      padding: 0 4px;
+    }
+
+    /* Sources */
+    .sources {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .sources-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      color: var(--muted);
+      padding: 0 2px;
+    }
+
+    .source-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--muted);
+    }
+
+    .source-item-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 5px;
+    }
+
+    .source-num  { font-weight: 700; color: var(--accent); }
+    .source-sim  { color: var(--green); font-weight: 600; }
+    .source-text { color: var(--text); opacity: .75; }
+
+    /* Typing indicator */
+    .typing {
+      display: flex;
+      gap: 5px;
+      padding: 14px 16px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      border-bottom-left-radius: 4px;
+      width: fit-content;
+    }
+
+    .typing span {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--muted);
+      animation: bounce .9s ease-in-out infinite;
+    }
+
+    .typing span:nth-child(2) { animation-delay: .15s; }
+    .typing span:nth-child(3) { animation-delay: .30s; }
+
+    @keyframes bounce {
+      0%, 80%, 100% { transform: translateY(0); opacity: .4; }
+      40%           { transform: translateY(-5px); opacity: 1; }
+    }
+
+    /* ── Chat input ───────────────────────────────────────── */
+    .chat-input-area {
+      padding: 14px 20px 18px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+
+    .chat-form {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+
+    .chat-textarea {
+      flex: 1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+      padding: 11px 14px;
+      border-radius: var(--radius);
+      resize: none;
+      line-height: 1.5;
+      min-height: 44px;
+      max-height: 140px;
+      overflow-y: auto;
+      transition: border-color .15s;
+    }
+
+    .chat-textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .chat-textarea::placeholder { color: var(--muted); }
+
+    .chat-textarea::-webkit-scrollbar { width: 4px; }
+    .chat-textarea::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .send-btn {
+      width: 44px; height: 44px;
+      padding: 0;
+      border-radius: var(--radius);
+      flex-shrink: 0;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    /* ── Modal ────────────────────────────────────────────── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.65);
+      display: none;
+      place-items: center;
+      z-index: 100;
+      padding: 16px;
+      backdrop-filter: blur(3px);
+    }
+
+    .modal-overlay.open { display: grid; }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      width: 100%;
+      max-width: 440px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .modal-title {
+      font-size: 17px;
+      font-weight: 700;
+    }
+
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+
+    .form-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+
+    .form-input, .form-textarea {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      transition: border-color .15s;
+    }
+
+    .form-input:focus, .form-textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .form-textarea {
+      resize: vertical;
+      min-height: 110px;
+      line-height: 1.5;
+    }
+
+    .form-hint {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+    /* ── Toast ────────────────────────────────────────────── */
+    .toast-wrap {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 200;
+    }
+
+    .toast {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      animation: slideIn .2s ease;
+      max-width: 320px;
+    }
+
+    .toast.success { border-left: 3px solid var(--green); }
+    .toast.error   { border-left: 3px solid var(--red); }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(20px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    /* ── Placeholder (brak projektu) ──────────────────────── */
+    .no-project {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      text-align: center;
+      gap: 14px;
+      padding: 40px;
+    }
+
+    .no-project-icon  { font-size: 48px; opacity: .3; }
+    .no-project-title { font-size: 17px; font-weight: 600; color: var(--text); }
+    .no-project-sub   { font-size: 14px; max-width: 280px; line-height: 1.6; }
+
+    /* ── Responsive ───────────────────────────────────────── */
+    @media (max-width: 640px) {
+      :root { --sidebar-w: 220px; }
+
+      .app { flex-direction: column; }
+
+      .sidebar {
+        width: 100%;
+        min-width: unset;
+        height: auto;
+        max-height: 200px;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .projekt-list { display: flex; flex-direction: row; gap: 6px; padding: 6px 8px; }
+
+      .projekt-item { flex-shrink: 0; min-width: 140px; margin-bottom: 0; }
+
+      .sidebar-footer { padding: 8px; }
+
+      .topbar { padding: 10px 12px; }
+      .topbar-name { font-size: 13px; }
+
+      .chat-messages { padding: 12px; }
+      .chat-input-area { padding: 10px 12px 14px; }
+
+      .msg { max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ═══ SIDEBAR ═══ -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <div class="logo-icon">🧠</div>
+        <div>
+          <div class="logo-text">AI Brain</div>
+          <div class="logo-sub">Baza wiedzy RAG</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="projekt-list" id="projektList">
+      <div class="empty-list" id="emptyList">Brak projektów.<br/>Utwórz pierwszy poniżej.</div>
+    </div>
+
+    <div class="sidebar-footer">
+      <button class="btn btn-primary btn-full" onclick="otworzModal()">
+        + Nowy projekt
+      </button>
+    </div>
+  </aside>
+
+  <!-- ═══ MAIN ═══ -->
+  <div class="main" id="main">
+
+    <!-- Brak projektu -->
+    <div class="no-project" id="noProject">
+      <div class="no-project-icon">📚</div>
+      <div class="no-project-title">Wybierz projekt</div>
+      <div class="no-project-sub">Wybierz projekt z listy lub utwórz nowy, aby rozpocząć rozmowę.</div>
+    </div>
+
+    <!-- Widok projektu -->
+    <div id="projectView" style="display:none; flex:1; flex-direction:column; overflow:hidden; display:none;">
+
+      <!-- Topbar -->
+      <div class="topbar">
+        <div class="topbar-project">
+          <div class="topbar-label">Aktywny projekt</div>
+          <div class="topbar-name" id="activeName">—</div>
+        </div>
+        <div class="topbar-actions">
+          <div class="upload-wrap">
+            <button class="btn btn-ghost btn-sm" id="uploadBtn">📄 Wgraj PDF</button>
+            <input type="file" class="upload-input" id="pdfInput" accept=".pdf" onchange="wgrajPDF()" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Progress bar -->
+      <div style="padding: 0 20px; background: var(--surface); border-bottom: 1px solid var(--border);">
+        <div class="progress-bar-wrap" id="progressWrap">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <div class="upload-status" id="uploadStatus"></div>
+      </div>
+
+      <!-- Chat -->
+      <div class="chat-wrap">
+        <div class="chat-messages" id="chatMessages">
+          <div class="chat-empty" id="chatEmpty">
+            <div class="chat-empty-icon">💬</div>
+            <div class="chat-empty-title">Zadaj pytanie</div>
+            <div class="chat-empty-sub">Wgraj PDF-y do projektu, a potem zadawaj pytania — znajdę odpowiedź w Twojej bazie wiedzy.</div>
+          </div>
+        </div>
+
+        <div class="chat-input-area">
+          <form class="chat-form" onsubmit="wyslijPytanie(event)">
+            <textarea
+              class="chat-textarea"
+              id="pytanieInput"
+              placeholder="Zadaj pytanie do bazy wiedzy…"
+              rows="1"
+              onkeydown="handleKey(event)"
+              oninput="autoResize(this)"
+            ></textarea>
+            <button type="submit" class="btn btn-primary send-btn" id="sendBtn" title="Wyślij">↑</button>
+          </form>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL — nowy projekt ═══ -->
+<div class="modal-overlay" id="modalOverlay" onclick="zamknijModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">Nowy projekt</div>
+
+    <div class="form-group">
+      <label class="form-label" for="nazwaInput">Nazwa projektu</label>
+      <input class="form-input" id="nazwaInput" type="text" placeholder="np. Marketing B2B, Prawo podatkowe…" maxlength="80" />
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="kontekstInput">Kontekst (rola asystenta)</label>
+      <textarea class="form-textarea" id="kontekstInput"
+        placeholder="np. Jestem właścicielem firmy, interesuje mnie marketing B2B. Odpowiadaj konkretnie i podawaj przykłady."></textarea>
+      <div class="form-hint">Opisz, czego dotyczy projekt i jak asystent ma się zachowywać. To zwiększy trafność odpowiedzi.</div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="zamknijModal()">Anuluj</button>
+      <button class="btn btn-primary" id="zapiszBtn" onclick="zapiszProjekt()">Utwórz projekt</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TOASTY ═══ -->
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+  const API = 'http://localhost:3000';
+
+  let aktywnyProjekt = null;
+  let projekty = [];
+  let czeka = false;
+
+  // ── Init ───────────────────────────────────────────────────
+  pobierzProjekty();
+
+  async function pobierzProjekty() {
+    try {
+      const res = await fetch(`${API}/api/projekty`);
+      if (!res.ok) throw new Error(await res.text());
+      projekty = await res.json();
+      renderujProjekty();
+    } catch (e) {
+      toast('Błąd ładowania projektów: ' + e.message, 'error');
+    }
+  }
+
+  // ── Render sidebar ────────────────────────────────────────
+  function renderujProjekty() {
+    const list = document.getElementById('projektList');
+    const empty = document.getElementById('emptyList');
+
+    // Usuń stare kafelki (zostaw emptyList)
+    [...list.children].forEach(el => { if (el !== empty) el.remove(); });
+
+    if (projekty.length === 0) {
+      empty.style.display = '';
+      return;
+    }
+
+    empty.style.display = 'none';
+
+    projekty.forEach(p => {
+      const el = document.createElement('div');
+      el.className = 'projekt-item' + (aktywnyProjekt?.id === p.id ? ' active' : '');
+      el.dataset.id = p.id;
+      el.innerHTML = `
+        <div class="projekt-item-name">${esc(p.nazwa)}</div>
+        <div class="projekt-item-date">${formatDate(p.created_at)}</div>
+      `;
+      el.onclick = () => ustawProjekt(p);
+      list.appendChild(el);
+    });
+  }
+
+  // ── Aktywny projekt ───────────────────────────────────────
+  function ustawProjekt(p) {
+    aktywnyProjekt = p;
+
+    document.querySelectorAll('.projekt-item').forEach(el => {
+      el.classList.toggle('active', el.dataset.id === p.id);
+    });
+
+    document.getElementById('noProject').style.display = 'none';
+    const view = document.getElementById('projectView');
+    view.style.display = 'flex';
+    view.style.flexDirection = 'column';
+    view.style.overflow = 'hidden';
+    view.style.flex = '1';
+
+    document.getElementById('activeName').textContent = p.nazwa;
+
+    // Wyczyść chat przy zmianie projektu
+    const msgs = document.getElementById('chatMessages');
+    msgs.innerHTML = '';
+    msgs.appendChild(document.getElementById('chatEmpty'));
+    document.getElementById('chatEmpty').style.display = 'flex';
+  }
+
+  // ── Modal ─────────────────────────────────────────────────
+  function otworzModal() {
+    document.getElementById('modalOverlay').classList.add('open');
+    setTimeout(() => document.getElementById('nazwaInput').focus(), 50);
+  }
+
+  function zamknijModal(e) {
+    if (e && e.target !== document.getElementById('modalOverlay')) return;
+    document.getElementById('modalOverlay').classList.remove('open');
+    document.getElementById('nazwaInput').value = '';
+    document.getElementById('kontekstInput').value = '';
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') document.getElementById('modalOverlay').classList.remove('open');
+  });
+
+  async function zapiszProjekt() {
+    const nazwa    = document.getElementById('nazwaInput').value.trim();
+    const kontekst = document.getElementById('kontekstInput').value.trim();
+
+    if (!nazwa) {
+      toast('Wpisz nazwę projektu', 'error');
+      document.getElementById('nazwaInput').focus();
+      return;
+    }
+
+    const btn = document.getElementById('zapiszBtn');
+    btn.disabled = true;
+    btn.textContent = 'Tworzę…';
+
+    try {
+      const res = await fetch(`${API}/api/projekty`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nazwa, kontekst }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || res.statusText);
+      const nowy = await res.json();
+
+      projekty.unshift(nowy);
+      renderujProjekty();
+      ustawProjekt(nowy);
+      document.getElementById('modalOverlay').classList.remove('open');
+      document.getElementById('nazwaInput').value = '';
+      document.getElementById('kontekstInput').value = '';
+      toast('Projekt "' + nowy.nazwa + '" utworzony ✓', 'success');
+    } catch (e) {
+      toast('Błąd: ' + e.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Utwórz projekt';
+    }
+  }
+
+  // ── Upload PDF ────────────────────────────────────────────
+  async function wgrajPDF() {
+    const input = document.getElementById('pdfInput');
+    const plik = input.files[0];
+    if (!plik) return;
+
+    if (!aktywnyProjekt) {
+      toast('Najpierw wybierz projekt', 'error');
+      input.value = '';
+      return;
+    }
+
+    const progressWrap = document.getElementById('progressWrap');
+    const progressBar  = document.getElementById('progressBar');
+    const statusEl     = document.getElementById('uploadStatus');
+    const uploadBtn    = document.getElementById('uploadBtn');
+
+    progressWrap.classList.add('visible');
+    uploadBtn.disabled = true;
+    statusEl.textContent = 'Wysyłanie…';
+    progressBar.style.width = '0%';
+
+    // Animowany postęp (plik leci przez HTTP — prawdziwy progress przez XHR)
+    const form = new FormData();
+    form.append('plik', plik);
+    form.append('projektId', aktywnyProjekt.id);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${API}/api/dokumenty/wgraj`);
+
+    xhr.upload.onprogress = e => {
+      if (e.lengthComputable) {
+        const pct = Math.round((e.loaded / e.total) * 60); // do 60% za upload
+        progressBar.style.width = pct + '%';
+        statusEl.textContent = `Wysyłanie… ${pct}%`;
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        progressBar.style.width = '100%';
+        const data = JSON.parse(xhr.responseText);
+        statusEl.textContent = `✓ Przetworzono ${data.fragmenty} fragmentów`;
+        toast(`PDF "${plik.name}" wgrany — ${data.fragmenty} fragmentów ✓`, 'success');
+        setTimeout(() => {
+          progressWrap.classList.remove('visible');
+          progressBar.style.width = '0%';
+          statusEl.textContent = '';
+        }, 3000);
+      } else {
+        let msg = 'Błąd serwera';
+        try { msg = JSON.parse(xhr.responseText).error || msg; } catch {}
+        statusEl.textContent = '✗ ' + msg;
+        progressWrap.classList.remove('visible');
+        toast('Błąd wgrywania: ' + msg, 'error');
+      }
+      uploadBtn.disabled = false;
+      input.value = '';
+    };
+
+    xhr.onerror = () => {
+      statusEl.textContent = '✗ Błąd połączenia';
+      progressWrap.classList.remove('visible');
+      toast('Błąd połączenia z serwerem', 'error');
+      uploadBtn.disabled = false;
+      input.value = '';
+    };
+
+    // Symuluj processing (60→95%) podczas gdy serwer przetwarza embeddingi
+    xhr.upload.onloadend = () => {
+      let pct = 60;
+      const iv = setInterval(() => {
+        pct = Math.min(pct + 3, 95);
+        progressBar.style.width = pct + '%';
+        statusEl.textContent = `Przetwarzanie embeddingów… ${pct}%`;
+        if (pct >= 95) clearInterval(iv);
+      }, 400);
+      xhr._processingInterval = iv;
+    };
+
+    xhr.send(form);
+  }
+
+  // ── Chat ──────────────────────────────────────────────────
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      e.target.closest('form').dispatchEvent(new Event('submit'));
+    }
+  }
+
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+  }
+
+  async function wyslijPytanie(e) {
+    e.preventDefault();
+    if (czeka) return;
+
+    const input = document.getElementById('pytanieInput');
+    const pytanie = input.value.trim();
+    if (!pytanie) return;
+
+    if (!aktywnyProjekt) {
+      toast('Wybierz projekt', 'error');
+      return;
+    }
+
+    input.value = '';
+    input.style.height = 'auto';
+    czeka = true;
+    document.getElementById('sendBtn').disabled = true;
+
+    ukryjEmpty();
+    dodajWiadomosc('user', pytanie);
+    const typing = dodajTyping();
+
+    try {
+      const res = await fetch(`${API}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pytanie, projektId: aktywnyProjekt.id }),
+      });
+
+      const data = await res.json();
+      typing.remove();
+
+      if (!res.ok) throw new Error(data.error || res.statusText);
+
+      dodajOdpowiedz(data.odpowiedz, data.zrodla);
+    } catch (err) {
+      typing.remove();
+      dodajWiadomosc('assistant', '⚠️ Błąd: ' + err.message);
+    } finally {
+      czeka = false;
+      document.getElementById('sendBtn').disabled = false;
+      input.focus();
+    }
+  }
+
+  function ukryjEmpty() {
+    const empty = document.getElementById('chatEmpty');
+    if (empty) empty.style.display = 'none';
+  }
+
+  function dodajWiadomosc(rola, tekst) {
+    const msgs = document.getElementById('chatMessages');
+    const div = document.createElement('div');
+    div.className = 'msg ' + rola;
+    div.innerHTML = `
+      <div class="msg-label">${rola === 'user' ? 'Ty' : 'Asystent'}</div>
+      <div class="msg-bubble">${esc(tekst)}</div>
+    `;
+    msgs.appendChild(div);
+    scrollDoDolu();
+    return div;
+  }
+
+  function dodajOdpowiedz(tekst, zrodla) {
+    const msgs = document.getElementById('chatMessages');
+    const div = document.createElement('div');
+    div.className = 'msg assistant';
+
+    let sourcesHtml = '';
+    if (zrodla && zrodla.length > 0) {
+      const items = zrodla.map(z => `
+        <div class="source-item">
+          <div class="source-item-header">
+            <span class="source-num">Źródło ${z.numer}</span>
+            <span class="source-sim">${Math.round(z.podobienstwo * 100)}% zgodności</span>
+          </div>
+          <div class="source-text">${esc(z.tresc.slice(0, 200))}${z.tresc.length > 200 ? '…' : ''}</div>
+        </div>
+      `).join('');
+
+      sourcesHtml = `
+        <div class="sources">
+          <div class="sources-title">Źródła (${zrodla.length})</div>
+          ${items}
+        </div>
+      `;
+    }
+
+    div.innerHTML = `
+      <div class="msg-label">Asystent</div>
+      <div class="msg-bubble">${esc(tekst)}</div>
+      ${sourcesHtml}
+    `;
+    msgs.appendChild(div);
+    scrollDoDolu();
+  }
+
+  function dodajTyping() {
+    const msgs = document.getElementById('chatMessages');
+    const div = document.createElement('div');
+    div.className = 'msg assistant';
+    div.innerHTML = `
+      <div class="msg-label">Asystent</div>
+      <div class="typing"><span></span><span></span><span></span></div>
+    `;
+    msgs.appendChild(div);
+    scrollDoDolu();
+    return div;
+  }
+
+  function scrollDoDolu() {
+    const msgs = document.getElementById('chatMessages');
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  // ── Toast ─────────────────────────────────────────────────
+  function toast(tekst, typ = 'success') {
+    const wrap = document.getElementById('toastWrap');
+    const el = document.createElement('div');
+    el.className = `toast ${typ}`;
+    el.textContent = tekst;
+    wrap.appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+  }
+
+  // ── Utils ─────────────────────────────────────────────────
+  function esc(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function formatDate(iso) {
+    if (!iso) return '';
+    return new Date(iso).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' });
+  }
+</script>
+</body>
+</html>
