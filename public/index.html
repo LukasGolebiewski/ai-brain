@@ -638,7 +638,7 @@
         <div class="topbar-actions">
           <div class="upload-wrap">
             <button class="btn btn-ghost btn-sm" id="uploadBtn">📄 Wgraj PDF</button>
-            <input type="file" class="upload-input" id="pdfInput" accept=".pdf" onchange="wgrajPDF()" />
+            <input type="file" class="upload-input" id="pdfInput" accept=".pdf" multiple onchange="wgrajPDF()" />
           </div>
           <button class="btn btn-ghost btn-sm" id="urlToggleBtn" onclick="przelaczURL()">🌐 Dodaj URL</button>
         </div>
@@ -849,11 +849,11 @@
     }
   }
 
-  // ── Upload PDF ────────────────────────────────────────────
+  // ── Upload PDF (wiele plików kolejno) ────────────────────
   async function wgrajPDF() {
-    const input = document.getElementById('pdfInput');
-    const plik = input.files[0];
-    if (!plik) return;
+    const input     = document.getElementById('pdfInput');
+    const pliki     = [...input.files];
+    if (!pliki.length) return;
 
     if (!aktywnyProjekt) {
       toast('Najpierw wybierz projekt', 'error');
@@ -865,71 +865,109 @@
     const progressBar  = document.getElementById('progressBar');
     const statusEl     = document.getElementById('uploadStatus');
     const uploadBtn    = document.getElementById('uploadBtn');
+    const total        = pliki.length;
 
+    // Pokaż listę wybranych plików
+    const nazwy = pliki.map(p => p.name).join(', ');
+    statusEl.textContent = `Wybrano ${total} ${total === 1 ? 'plik' : 'pliki/ów'}: ${nazwy}`;
     progressWrap.classList.add('visible');
-    uploadBtn.disabled = true;
-    statusEl.textContent = 'Wysyłanie…';
     progressBar.style.width = '0%';
+    uploadBtn.disabled = true;
 
-    // Animowany postęp (plik leci przez HTTP — prawdziwy progress przez XHR)
-    const form = new FormData();
-    form.append('plik', plik);
-    form.append('projektId', aktywnyProjekt.id);
+    const bledy = [];
+    let sukcesy = 0;
 
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', `${API}/api/dokumenty/wgraj`);
+    for (let i = 0; i < total; i++) {
+      const plik    = pliki[i];
+      const nrLabel = `${i + 1}/${total}`;
 
-    xhr.upload.onprogress = e => {
-      if (e.lengthComputable) {
-        const pct = Math.round((e.loaded / e.total) * 60); // do 60% za upload
-        progressBar.style.width = pct + '%';
-        statusEl.textContent = `Wysyłanie… ${pct}%`;
+      statusEl.textContent = `Wgrywanie ${nrLabel}: ${plik.name}…`;
+      progressBar.style.width = Math.round((i / total) * 100) + '%';
+
+      try {
+        await wgrajJedenPlik(plik, nrLabel, progressBar, statusEl);
+        sukcesy++;
+        statusEl.textContent = `Wgrywanie ${nrLabel}: ${plik.name}… ✓`;
+      } catch (err) {
+        bledy.push({ nazwa: plik.name, blad: err.message });
+        statusEl.textContent = `Wgrywanie ${nrLabel}: ${plik.name}… ✗`;
+        toast(`Błąd: ${plik.name} — ${err.message}`, 'error');
       }
-    };
 
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        progressBar.style.width = '100%';
-        const data = JSON.parse(xhr.responseText);
-        statusEl.textContent = `✓ Przetworzono ${data.fragmenty} fragmentów`;
-        toast(`PDF "${plik.name}" wgrany — ${data.fragmenty} fragmentów ✓`, 'success');
-        setTimeout(() => {
-          progressWrap.classList.remove('visible');
-          progressBar.style.width = '0%';
-          statusEl.textContent = '';
-        }, 3000);
-      } else {
-        let msg = 'Błąd serwera';
-        try { msg = JSON.parse(xhr.responseText).error || msg; } catch {}
-        statusEl.textContent = '✗ ' + msg;
-        progressWrap.classList.remove('visible');
-        toast('Błąd wgrywania: ' + msg, 'error');
-      }
-      uploadBtn.disabled = false;
-      input.value = '';
-    };
+      // Krótka pauza żeby status był widoczny
+      await new Promise(r => setTimeout(r, 400));
+    }
 
-    xhr.onerror = () => {
-      statusEl.textContent = '✗ Błąd połączenia';
+    // Podsumowanie
+    progressBar.style.width = '100%';
+    if (bledy.length === 0) {
+      statusEl.textContent = total === 1
+        ? 'Plik wgrany pomyślnie!'
+        : `Wszystkie ${total} pliki wgrane!`;
+      toast(`Wgrano ${sukcesy} z ${total} plików ✓`, 'success');
+    } else {
+      statusEl.textContent = `Wgrano ${sukcesy}/${total} — ${bledy.length} błąd(y)`;
+      toast(`Wgrano ${sukcesy}/${total} plików (${bledy.length} błędów)`, 'error');
+    }
+
+    setTimeout(() => {
       progressWrap.classList.remove('visible');
-      toast('Błąd połączenia z serwerem', 'error');
-      uploadBtn.disabled = false;
-      input.value = '';
-    };
+      progressBar.style.width = '0%';
+      statusEl.textContent = '';
+    }, 4000);
 
-    // Symuluj processing (60→95%) podczas gdy serwer przetwarza embeddingi
-    xhr.upload.onloadend = () => {
-      let pct = 60;
-      const iv = setInterval(() => {
-        pct = Math.min(pct + 3, 95);
-        progressBar.style.width = pct + '%';
-        statusEl.textContent = `Przetwarzanie embeddingów… ${pct}%`;
-        if (pct >= 95) clearInterval(iv);
-      }, 400);
-      xhr._processingInterval = iv;
-    };
+    uploadBtn.disabled = false;
+    input.value = '';
+  }
 
-    xhr.send(form);
+  // Wysyła jeden plik przez XHR i zwraca Promise
+  function wgrajJedenPlik(plik, nrLabel, progressBar, statusEl) {
+    return new Promise((resolve, reject) => {
+      const form = new FormData();
+      form.append('plik', plik);
+      form.append('projektId', aktywnyProjekt.id);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${API}/api/dokumenty/wgraj`);
+
+      xhr.upload.onprogress = e => {
+        if (e.lengthComputable) {
+          // Postęp uploadu skalowany do zakresu bieżącego pliku (nie całości)
+          const uploadPct = Math.round((e.loaded / e.total) * 60);
+          statusEl.textContent = `Wgrywanie ${nrLabel}: ${plik.name}… ${uploadPct}%`;
+        }
+      };
+
+      xhr.upload.onloadend = () => {
+        let pct = 60;
+        const iv = setInterval(() => {
+          pct = Math.min(pct + 5, 95);
+          statusEl.textContent = `Przetwarzanie ${nrLabel}: ${plik.name}… ${pct}%`;
+          if (pct >= 95) clearInterval(iv);
+        }, 350);
+        xhr._iv = iv;
+      };
+
+      xhr.onload = () => {
+        clearInterval(xhr._iv);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          let data = {};
+          try { data = JSON.parse(xhr.responseText); } catch {}
+          resolve(data);
+        } else {
+          let msg = 'Błąd serwera';
+          try { msg = JSON.parse(xhr.responseText).error || msg; } catch {}
+          reject(new Error(msg));
+        }
+      };
+
+      xhr.onerror = () => {
+        clearInterval(xhr._iv);
+        reject(new Error('Błąd połączenia z serwerem'));
+      };
+
+      xhr.send(form);
+    });
   }
 
   // ── Dodaj URL ─────────────────────────────────────────────
