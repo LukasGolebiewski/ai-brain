@@ -13,7 +13,8 @@ import {
   zapiszDokument,
   szukajPodobnych,
 } from './src/supabase.js';
-import { przetworzPDF } from './src/embeddings.js';
+import { przetworzPDF, przetworzTekst } from './src/embeddings.js';
+import { pobierzStrone } from './src/scraper.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -96,6 +97,43 @@ app.post('/api/dokumenty/wgraj', upload.single('plik'), async (req, res, next) =
   } finally {
     // Usuń tymczasowy plik niezależnie od wyniku
     if (sciezka) fs.unlink(sciezka, () => {});
+  }
+});
+
+// POST /api/dokumenty/url — wgrywanie strony WWW jako źródła wiedzy
+app.post('/api/dokumenty/url', async (req, res, next) => {
+  try {
+    const { url, projektId } = req.body;
+
+    if (!url?.trim()) {
+      return res.status(400).json({ error: 'Pole "url" jest wymagane' });
+    }
+    if (!projektId) {
+      return res.status(400).json({ error: 'Pole "projektId" jest wymagane' });
+    }
+
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(url.trim());
+    } catch {
+      return res.status(400).json({ error: 'Nieprawidłowy adres URL' });
+    }
+
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      return res.status(400).json({ error: 'Dozwolone tylko adresy http:// i https://' });
+    }
+
+    const { tekst, tytul } = await pobierzStrone(url.trim());
+    const dokument = await zapiszDokument(projektId, tytul || url.trim());
+    const wynik = await przetworzTekst(tekst, dokument.id, projektId);
+
+    res.status(201).json({
+      dokumentId: dokument.id,
+      nazwa: tytul,
+      fragmenty: wynik.chunks,
+    });
+  } catch (err) {
+    next(err);
   }
 });
 

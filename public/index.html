@@ -229,6 +229,33 @@
       text-align: right;
     }
 
+    /* URL input inline */
+    .url-row {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .url-row.visible { display: flex; }
+
+    .url-input {
+      flex: 1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 13px;
+      padding: 7px 11px;
+      border-radius: 8px;
+      transition: border-color .15s;
+    }
+
+    .url-input:focus { outline: none; border-color: var(--accent); }
+    .url-input::placeholder { color: var(--muted); }
+
     /* ── Chat ─────────────────────────────────────────────── */
     .chat-wrap {
       flex: 1;
@@ -613,7 +640,21 @@
             <button class="btn btn-ghost btn-sm" id="uploadBtn">📄 Wgraj PDF</button>
             <input type="file" class="upload-input" id="pdfInput" accept=".pdf" onchange="wgrajPDF()" />
           </div>
+          <button class="btn btn-ghost btn-sm" id="urlToggleBtn" onclick="przelaczURL()">🌐 Dodaj URL</button>
         </div>
+      </div>
+
+      <!-- URL input row -->
+      <div class="url-row" id="urlRow">
+        <input
+          class="url-input"
+          id="urlInput"
+          type="url"
+          placeholder="https://przykład.com/artykuł"
+          onkeydown="if(event.key==='Enter') dodajURL(); if(event.key==='Escape') przelaczURL(false);"
+        />
+        <button class="btn btn-primary btn-sm" onclick="dodajURL()" id="urlSubmitBtn">Pobierz</button>
+        <button class="btn btn-ghost btn-sm" onclick="przelaczURL(false)">✕</button>
       </div>
 
       <!-- Progress bar -->
@@ -889,6 +930,91 @@
     };
 
     xhr.send(form);
+  }
+
+  // ── Dodaj URL ─────────────────────────────────────────────
+  function przelaczURL(stan) {
+    const row = document.getElementById('urlRow');
+    const btn = document.getElementById('urlToggleBtn');
+    const widoczny = stan !== undefined ? stan : !row.classList.contains('visible');
+
+    row.classList.toggle('visible', widoczny);
+    btn.style.background = widoczny ? 'var(--accent-bg)' : '';
+    btn.style.borderColor = widoczny ? 'var(--accent)' : '';
+
+    if (widoczny) {
+      setTimeout(() => document.getElementById('urlInput').focus(), 50);
+    } else {
+      document.getElementById('urlInput').value = '';
+    }
+  }
+
+  async function dodajURL() {
+    const urlInput    = document.getElementById('urlInput');
+    const urlSubmit   = document.getElementById('urlSubmitBtn');
+    const progressWrap = document.getElementById('progressWrap');
+    const progressBar  = document.getElementById('progressBar');
+    const statusEl     = document.getElementById('uploadStatus');
+    const url = urlInput.value.trim();
+
+    if (!url) return;
+
+    if (!aktywnyProjekt) {
+      toast('Najpierw wybierz projekt', 'error');
+      return;
+    }
+
+    try { new URL(url); } catch {
+      toast('Nieprawidłowy adres URL', 'error');
+      return;
+    }
+
+    urlSubmit.disabled = true;
+    urlSubmit.textContent = '…';
+    progressWrap.classList.add('visible');
+    progressBar.style.width = '15%';
+    statusEl.textContent = 'Pobieranie strony…';
+
+    // Symuluj postęp podczas scrapowania + embeddingów
+    let pct = 15;
+    const iv = setInterval(() => {
+      pct = Math.min(pct + 4, 90);
+      progressBar.style.width = pct + '%';
+      if (pct < 40) statusEl.textContent = 'Pobieranie strony…';
+      else statusEl.textContent = 'Przetwarzanie embeddingów…';
+    }, 500);
+
+    try {
+      const res = await fetch(`${API}/api/dokumenty/url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, projektId: aktywnyProjekt.id }),
+      });
+
+      clearInterval(iv);
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || res.statusText);
+
+      progressBar.style.width = '100%';
+      statusEl.textContent = `✓ Przetworzono ${data.fragmenty} fragmentów`;
+      toast(`"${data.nazwa}" dodano — ${data.fragmenty} fragmentów ✓`, 'success');
+
+      przelaczURL(false);
+      setTimeout(() => {
+        progressWrap.classList.remove('visible');
+        progressBar.style.width = '0%';
+        statusEl.textContent = '';
+      }, 3000);
+    } catch (err) {
+      clearInterval(iv);
+      progressWrap.classList.remove('visible');
+      statusEl.textContent = '';
+      toast('Błąd: ' + err.message, 'error');
+    } finally {
+      urlSubmit.disabled = false;
+      urlSubmit.textContent = 'Pobierz';
+    }
   }
 
   // ── Chat ──────────────────────────────────────────────────

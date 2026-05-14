@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\Projects\\\\ai_brain\\\\src\")"
+      "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\Projects\\\\ai_brain\\\\src\")",
+      "PowerShell(\\(Get-Content \"c:\\\\Projects\\\\ai_brain\\\\public\\\\index.html\" | Measure-Object -Line\\).Lines; \\(Get-Content \"c:\\\\Projects\\\\ai_brain\\\\public\\\\index.html\"\\)[-3..-1])"
     ]
   }
 }
