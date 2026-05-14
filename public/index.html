@@ -787,11 +787,11 @@
 
     document.getElementById('activeName').textContent = p.nazwa;
 
-    // Wyczyść chat przy zmianie projektu
+    // Wyczyść chat przy zmianie projektu (pomijamy #chatEmpty żeby go nie zniszczyć)
     const msgs = document.getElementById('chatMessages');
-    msgs.innerHTML = '';
-    msgs.appendChild(document.getElementById('chatEmpty'));
-    document.getElementById('chatEmpty').style.display = 'flex';
+    [...msgs.children].forEach(el => { if (el.id !== 'chatEmpty') el.remove(); });
+    const chatEmpty = document.getElementById('chatEmpty');
+    if (chatEmpty) chatEmpty.style.display = 'flex';
   }
 
   // ── Modal ─────────────────────────────────────────────────
