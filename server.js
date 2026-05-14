@@ -14,7 +14,7 @@ import {
   szukajPodobnych,
 } from './src/supabase.js';
 import { przetworzPDF, przetworzTekst } from './src/embeddings.js';
-import { pobierzStrone } from './src/scraper.js';
+import { pobierzStrone, pobierzArtykul } from './src/scraper.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -123,13 +123,51 @@ app.post('/api/dokumenty/url', async (req, res, next) => {
       return res.status(400).json({ error: 'Dozwolone tylko adresy http:// i https://' });
     }
 
-    const { tekst, tytul } = await pobierzStrone(url.trim());
-    const dokument = await zapiszDokument(projektId, tytul || url.trim());
-    const wynik = await przetworzTekst(tekst, dokument.id, projektId);
+    const strona = await pobierzStrone(url.trim());
+
+    // Strona-lista: pobierz artykuły osobno
+    if (strona.jestLista && strona.linki.length > 0) {
+      console.log(`[url] wykryto listę — pobieram ${strona.linki.length} artykułów`);
+
+      let totalFragmenty = 0;
+      const zapisaneDokumenty = [];
+
+      for (const linkUrl of strona.linki) {
+        try {
+          const artykul = await pobierzArtykul(linkUrl);
+          if (!artykul.tekst || artykul.tekst.length < 100) continue;
+
+          const dok = await zapiszDokument(projektId, artykul.tytul || linkUrl);
+          const wynik = await przetworzTekst(artykul.tekst, dok.id, projektId);
+          totalFragmenty += wynik.chunks;
+          zapisaneDokumenty.push(artykul.tytul || linkUrl);
+          console.log(`[url] ✓ ${artykul.tytul} (${wynik.chunks} fragmentów)`);
+        } catch (e) {
+          console.warn(`[url] pominięto ${linkUrl}: ${e.message}`);
+        }
+      }
+
+      if (zapisaneDokumenty.length === 0) {
+        return res.status(422).json({ error: 'Nie udało się pobrać żadnego artykułu z tej strony-listy' });
+      }
+
+      return res.status(201).json({
+        tryb: 'lista',
+        dokumenty: zapisaneDokumenty.length,
+        fragmenty: totalFragmenty,
+        nazwa: strona.tytul,
+        artykuly: zapisaneDokumenty,
+      });
+    }
+
+    // Pojedynczy artykuł
+    const dokument = await zapiszDokument(projektId, strona.tytul || url.trim());
+    const wynik = await przetworzTekst(strona.tekst, dokument.id, projektId);
 
     res.status(201).json({
+      tryb: 'artykul',
       dokumentId: dokument.id,
-      nazwa: tytul,
+      nazwa: strona.tytul,
       fragmenty: wynik.chunks,
     });
   } catch (err) {
@@ -216,10 +254,12 @@ app.use((err, _req, res, next) => {
   next(err);
 });
 
-// Ogólny handler błędów
+// Ogólny handler błędów — zawsze zwraca JSON, nigdy HTML
 app.use((err, _req, res, _next) => {
   console.error('[ERROR]', err.message);
-  res.status(500).json({ error: 'Błąd serwera', szczegoly: err.message });
+  if (res.headersSent) return;
+  res.setHeader('Content-Type', 'application/json');
+  res.status(500).json({ error: err.message || 'Błąd serwera' });
 });
 
 // --- Start ---

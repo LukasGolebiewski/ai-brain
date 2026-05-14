@@ -992,13 +992,28 @@
       });
 
       clearInterval(iv);
-      const data = await res.json();
+
+      // Bezpieczny odczyt JSON — serwer może zwrócić HTML przy nieoczekiwanym błędzie
+      const tekst = await res.text();
+      let data;
+      try {
+        data = JSON.parse(tekst);
+      } catch {
+        throw new Error(`Serwer zwrócił błąd (${res.status})`);
+      }
 
       if (!res.ok) throw new Error(data.error || res.statusText);
 
       progressBar.style.width = '100%';
-      statusEl.textContent = `✓ Przetworzono ${data.fragmenty} fragmentów`;
-      toast(`"${data.nazwa}" dodano — ${data.fragmenty} fragmentów ✓`, 'success');
+
+      // Obsługa odpowiedzi dla listy i pojedynczego artykułu
+      if (data.tryb === 'lista') {
+        statusEl.textContent = `✓ Pobrano ${data.dokumenty} artykułów — ${data.fragmenty} fragmentów`;
+        toast(`Strona-lista: pobrano ${data.dokumenty} artykułów (${data.fragmenty} fragmentów) ✓`, 'success');
+      } else {
+        statusEl.textContent = `✓ Przetworzono ${data.fragmenty} fragmentów`;
+        toast(`"${data.nazwa}" dodano — ${data.fragmenty} fragmentów ✓`, 'success');
+      }
 
       przelaczURL(false);
       setTimeout(() => {
